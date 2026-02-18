@@ -171,6 +171,19 @@ io.on('connection', (socket) => {
     io.emit('leaderboard_updated', leaderboard);
   });
 
+  // Chat message
+  socket.on('send_chat', (data) => {
+    const room = rooms[data.roomId];
+    if (room) {
+      const isPlayer1 = room.player1Id === socket.id;
+      io.to(data.roomId).emit('chat_message', {
+        playerName: data.playerName,
+        message: data.message,
+        isCurrentPlayer: isPlayer1
+      });
+    }
+  });
+
   // Disconnect
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
@@ -224,7 +237,8 @@ function updateLeaderboard(winner) {
   io.emit('leaderboard_updated', leaderboard);
 }
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+const PORT = process.env.PORT || 8080;
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Access from other devices: http://10.20.53.89:${PORT}`);
 });
