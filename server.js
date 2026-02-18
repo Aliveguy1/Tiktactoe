@@ -66,6 +66,7 @@ io.on('connection', (socket) => {
       player1Id: socket.id,
       player2: null,
       player2Id: null,
+      spectators: [],
       board: ['', '', '', '', '', '', '', '', ''],
       currentPlayer: 'X',
       status: 'waiting',
@@ -77,7 +78,8 @@ io.on('connection', (socket) => {
     io.emit('rooms_updated', Object.keys(rooms).map(id => ({
       id: id,
       player1: rooms[id].player1,
-      status: rooms[id].status
+      status: rooms[id].status,
+      spectatorCount: rooms[id].spectators.length
     })));
   });
 
@@ -94,10 +96,32 @@ io.on('connection', (socket) => {
       io.emit('rooms_updated', Object.keys(rooms).map(id => ({
         id: id,
         player1: rooms[id].player1,
-        status: rooms[id].status
+        status: rooms[id].status,
+        spectatorCount: rooms[id].spectators.length
       })));
     } else {
       socket.emit('join_failed', { message: 'Room not available' });
+    }
+  });
+
+  // Join as spectator
+  socket.on('join_as_spectator', (data) => {
+    const room = rooms[data.roomId];
+    if (room && room.spectators.length < 2) {
+      room.spectators.push({
+        id: socket.id,
+        name: data.playerName
+      });
+      socket.join(data.roomId);
+      io.to(data.roomId).emit('game_updated', room);
+      io.emit('rooms_updated', Object.keys(rooms).map(id => ({
+        id: id,
+        player1: rooms[id].player1,
+        status: rooms[id].status,
+        spectatorCount: rooms[id].spectators.length
+      })));
+    } else {
+      socket.emit('join_failed', { message: 'Room is full or spectators are maxed out' });
     }
   });
 
@@ -194,13 +218,20 @@ io.on('connection', (socket) => {
       if (room.player1Id === socket.id || room.player2Id === socket.id) {
         io.to(roomId).emit('player_disconnected', { message: 'A player has disconnected' });
         delete rooms[roomId];
+      } else {
+        // Remove spectators
+        room.spectators = room.spectators.filter(s => s.id !== socket.id);
+        if (room.spectators.length > 0 || room.player1Id || room.player2Id) {
+          io.to(roomId).emit('game_updated', room);
+        }
       }
     }
     
     io.emit('rooms_updated', Object.keys(rooms).map(id => ({
       id: id,
       player1: rooms[id].player1,
-      status: rooms[id].status
+      status: rooms[id].status,
+      spectatorCount: rooms[id].spectators.length
     })));
   });
 });
