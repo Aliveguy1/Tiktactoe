@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic Tac Toe - Live Multiplayer</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        .lobby-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .lobby-modal {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .lobby-modal h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .lobby-input-group {
+            margin-bottom: 20px;
+        }
+
+        .lobby-input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: bold;
+        }
+
+        .lobby-input-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .lobby-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .lobby-buttons button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .rooms-list {
+            border-top: 2px solid #f0f0f0;
+            padding-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .rooms-list h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .room-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: #f5f7fa;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .room-item button {
+            padding: 8px 15px;
+            font-size: 12px;
+            background: #667eea;
+            color: white;
+        }
+
+        .game-info {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 8px;
+        }
+
+        .game-info p {
+            color: #666;
+            margin: 5px 0;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .game-section {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .leaderboard-section {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 28px;
+        }
+
+        .player-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .player-input {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            color: #333;
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        input[type="text"] {
+            padding: 10px;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #764ba2;
+        }
+
+        .game-status {
+            text-align: center;
+            margin: 20px 0;
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            min-height: 25px;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin: 30px 0;
+            background: #667eea;
+            padding: 8px;
+            border-radius: 10px;
+        }
+
+        .cell {
+            width: 80px;
+            height: 80px;
+            background: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: #667eea;
+        }
+
+        .cell:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .cell:active {
+            transform: scale(0.95);
+        }
+
+        .cell.x {
+            color: #667eea;
+        }
+
+        .cell.o {
+            color: #764ba2;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .start-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .start-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .reset-btn {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .reset-btn:hover {
+            background: #e0e0e0;
+        }
+
+        .leaderboard {
+            margin-top: 20px;
+        }
+
+        .leaderboard h2 {
+            color: #667eea;
+            font-size: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .leaderboard-list {
+            list-style: none;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .leaderboard-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .leaderboard-item.winner {
+            border-left-color: #ffd700;
+            background: linear-gradient(135deg, #fffacd 0%, #ffd700 100%);
+        }
+
+        .rank {
+            font-weight: bold;
+            color: #667eea;
+            font-size: 16px;
+            min-width: 30px;
+        }
+
+        .player-name {
+            flex: 1;
+            margin: 0 15px;
+            color: #333;
+            font-weight: bold;
+        }
+
+        .win-count {
+            background: #667eea;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+
+        .clear-btn {
+            width: 100%;
+            margin-top: 20px;
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .clear-btn:hover {
+            background: #ff5252;
+        }
+
+        .message {
+            text-align: center;
+            font-size: 14px;
+            color: #667eea;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        @media (max-width: 800px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+
+            .cell {
+                width: 60px;
+                height: 60px;
+                font-size: 24px;
+            }
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #764ba2;
+        }
+    </style>
+</head>
+<body>
+    <!-- Lobby Modal -->
+    <div class="lobby-overlay" id="lobbyOverlay">
+        <div class="lobby-modal">
+            <h2>⭕ Tic Tac Toe Multiplayer ❌</h2>
+            
+            <div class="lobby-input-group">
+                <label for="playerNameInput">Your Name</label>
+                <input type="text" id="playerNameInput" placeholder="Enter your name" value="Player">
+            </div>
+
+            <div class="lobby-buttons">
+                <button id="createRoomBtn">Create Room</button>
+                <button id="refreshRoomsBtn" style="background: #f0f0f0; color: #333;">Refresh Rooms</button>
+            </div>
+
+            <div class="rooms-list">
+                <h3>Available Rooms</h3>
+                <ul id="roomsList" style="list-style: none; padding: 0; margin: 0;">
+                    <li style="text-align: center; color: #999;">No rooms available</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="container" id="gameContainer" style="display: none;">
+
+        <!-- Game Section -->
+        <div class="game-section">
+            <h1>⭕ TIC TAC TOE ❌</h1>
+            
+            <div class="game-info">
+                <p><strong id="player1Info"></strong> (X) vs <strong id="player2Info"></strong> (O)</p>
+                <p id="roomInfo" style="font-size: 12px; color: #999;"></p>
+            </div>
+
+            <div class="game-status" id="gameStatus">Enter player names and click Start Game</div>
+
+            <div class="board">
+                <button class="cell" data-index="0"></button>
+                <button class="cell" data-index="1"></button>
+                <button class="cell" data-index="2"></button>
+                <button class="cell" data-index="3"></button>
+                <button class="cell" data-index="4"></button>
+                <button class="cell" data-index="5"></button>
+                <button class="cell" data-index="6"></button>
+                <button class="cell" data-index="7"></button>
+                <button class="cell" data-index="8"></button>
+            </div>
+
+            <div class="button-group">
+                <button class="start-btn" id="startBtn">Start Game</button>
+                <button class="reset-btn" id="resetBtn">Reset Board</button>
+                <button class="reset-btn" id="leaveBtn">Leave Room</button>
+            </div>
+
+            <div class="message" id="message"></div>
+        </div>
+
+        <!-- Leaderboard Section -->
+        <div class="leaderboard-section">
+            <div class="leaderboard">
+                <h2>🏆 Leaderboard</h2>
+                <ul class="leaderboard-list" id="leaderboardList">
+                    <li style="text-align: center; color: #999; padding: 30px;">No games played yet</li>
+                </ul>
+                <button class="clear-btn" id="clearBtn">Clear Leaderboard</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        
+        // DOM Elements
+        const lobbyOverlay = document.getElementById('lobbyOverlay');
+        const gameContainer = document.getElementById('gameContainer');
+        const playerNameInput = document.getElementById('playerNameInput');
+        const createRoomBtn = document.getElementById('createRoomBtn');
+        const refreshRoomsBtn = document.getElementById('refreshRoomsBtn');
+        const roomsList = document.getElementById('roomsList');
+        
+        const cells = document.querySelectorAll('.cell');
+        const gameStatus = document.getElementById('gameStatus');
+        const startBtn = document.getElementById('startBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const leaveBtn = document.getElementById('leaveBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const leaderboardList = document.getElementById('leaderboardList');
+        const messageDiv = document.getElementById('message');
+        const player1Info = document.getElementById('player1Info');
+        const player2Info = document.getElementById('player2Info');
+        const roomInfo = document.getElementById('roomInfo');
+
+        let currentRoom = null;
+        let playerName = '';
+        let currentBoard = ['', '', '', '', '', '', '', '', ''];
+        let currentPlayer = 'X';
+        let gameActive = false;
+        let isPlayer1 = false;
+
+        // Socket Events
+        socket.on('rooms_list', (rooms) => {
+            displayRooms(rooms);
+        });
+
+        socket.on('room_created', (data) => {
+            currentRoom = data.rooms;
+            playerName = playerNameInput.value.trim() || 'Player';
+            joinGameScreen();
+        });
+
+        socket.on('game_updated', (room) => {
+            currentRoom = room;
+            currentBoard = room.board;
+            currentPlayer = room.currentPlayer;
+            gameActive = room.gameActive;
+            isPlayer1 = room.player1Id === socket.id;
+            updateGameDisplay();
+        });
+
+        socket.on('game_won', (data) => {
+            gameStatus.textContent = `🎉 ${data.winner} (${data.symbol}) Wins!`;
+            messageDiv.textContent = 'Game Over!';
+            gameActive = false;
+            updateLeaderboardDisplay(data.leaderboard);
+        });
+
+        socket.on('game_draw', (data) => {
+            gameStatus.textContent = "It's a Draw! 🤝";
+            messageDiv.textContent = 'No winner this time!';
+            updateLeaderboardDisplay(data.leaderboard);
+        });
+
+        socket.on('join_failed', (data) => {
+            alert(data.message);
+            requestRooms();
+        });
+
+        socket.on('rooms_updated', (rooms) => {
+            if (!currentRoom) {
+                displayRooms(rooms);
+            }
+        });
+
+        socket.on('leaderboard_updated', (leaderboard) => {
+            updateLeaderboardDisplay(leaderboard);
+        });
+
+        socket.on('player_disconnected', (data) => {
+            alert(data.message);
+            leaveRoom();
+        });
+
+        // UI Functions
+        function displayRooms(rooms) {
+            if (rooms.length === 0) {
+                roomsList.innerHTML = '<li style="text-align: center; color: #999;">No rooms available</li>';
+                return;
+            }
+
+            roomsList.innerHTML = rooms.map(room => `
+                <li class="room-item">
+                    <div>
+                        <strong>${room.player1}</strong> (Waiting)
+                    </div>
+                    <button onclick="joinRoom('${room.id}')">Join</button>
+                </li>
+            `).join('');
+        }
+
+        function joinGameScreen() {
+            lobbyOverlay.classList.add('hidden');
+            gameContainer.style.display = 'grid';
+            updateGameDisplay();
+            socket.emit('get_leaderboard');
+        }
+
+        function updateGameDisplay() {
+            cells.forEach((cell, index) => {
+                cell.textContent = currentBoard[index];
+                cell.classList.remove('x', 'o');
+                if (currentBoard[index] === 'X') cell.classList.add('x');
+                if (currentBoard[index] === 'O') cell.classList.add('o');
+            });
+
+            player1Info.textContent = currentRoom.player1;
+            player2Info.textContent = currentRoom.player2 || 'Waiting...';
+            roomInfo.textContent = `Room ID: ${currentRoom.id}`;
+
+            if (!gameActive && currentRoom.status === 'ready') {
+                gameStatus.textContent = 'Ready to start! Click "Start Game"';
+            } else if (gameActive) {
+                const playerSymbol = isPlayer1 ? 'X' : 'O';
+                if (currentPlayer === playerSymbol) {
+                    gameStatus.textContent = `Your Turn (${playerSymbol})`;
+                } else {
+                    const otherPlayerName = isPlayer1 ? currentRoom.player2 : currentRoom.player1;
+                    gameStatus.textContent = `${otherPlayerName}'s Turn (${currentPlayer})`;
+                }
+            } else if (currentRoom.status === 'waiting') {
+                gameStatus.textContent = 'Waiting for another player...';
+            }
+        }
+
+        function updateLeaderboardDisplay(leaderboard) {
+            const sorted = Object.entries(leaderboard).sort((a, b) => b[1] - a[1]);
+
+            if (sorted.length === 0) {
+                leaderboardList.innerHTML = '<li style="text-align: center; color: #999; padding: 30px;">No games played yet</li>';
+                return;
+            }
+
+            leaderboardList.innerHTML = sorted.map(([name, wins], index) => `
+                <li class="leaderboard-item ${index === 0 ? 'winner' : ''}">
+                    <span class="rank">#${index + 1}</span>
+                    <span class="player-name">${name}</span>
+                    <span class="win-count">${wins} ${wins === 1 ? 'Win' : 'Wins'}</span>
+                </li>
+            `).join('');
+        }
+
+        // Button Events
+        createRoomBtn.addEventListener('click', () => {
+            playerName = playerNameInput.value.trim() || 'Player';
+            socket.emit('create_room', { playerName });
+        });
+
+        refreshRoomsBtn.addEventListener('click', () => {
+            requestRooms();
+        });
+
+        startBtn.addEventListener('click', () => {
+            if (currentRoom && currentRoom.player1Id === socket.id && currentRoom.player2) {
+                socket.emit('start_game', { roomId: currentRoom.id });
+            } else if (currentRoom && currentRoom.player1Id !== socket.id && currentRoom.player1) {
+                alert('Only Player 1 can start the game');
+            } else {
+                alert('Waiting for another player...');
+            }
+        });
+
+        resetBtn.addEventListener('click', () => {
+            if (currentRoom) {
+                socket.emit('reset_board', { roomId: currentRoom.id });
+            }
+        });
+
+        leaveBtn.addEventListener('click', () => {
+            leaveRoom();
+        });
+
+        clearBtn.addEventListener('click', () => {
+            if (confirm('Are you sure you want to clear the leaderboard?')) {
+                socket.emit('clear_leaderboard');
+            }
+        });
+
+        cells.forEach(cell => {
+            cell.addEventListener('click', () => {
+                if (gameActive && currentRoom) {
+                    const playerSymbol = isPlayer1 ? 'X' : 'O';
+                    if (currentPlayer === playerSymbol) {
+                        const index = cell.getAttribute('data-index');
+                        socket.emit('make_move', { roomId: currentRoom.id, index: parseInt(index) });
+                    }
+                }
+            });
+        });
+
+        // Helper Functions
+        function requestRooms() {
+            socket.emit('get_rooms');
+        }
+
+        function joinRoom(roomId) {
+            playerName = playerNameInput.value.trim() || 'Player';
+            socket.emit('join_room', { roomId, playerName });
+            currentRoom = { id: roomId };
+            joinGameScreen();
+        }
+
+        function leaveRoom() {
+            currentRoom = null;
+            currentBoard = ['', '', '', '', '', '', '', '', ''];
+            gameActive = false;
+            lobbyOverlay.classList.remove('hidden');
+            gameContainer.style.display = 'none';
+            requestRooms();
+        }
+
+        // Initialize
+        requestRooms();
+    </script>
+</body>
+</html>
