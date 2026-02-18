@@ -123,6 +123,12 @@
             color: white;
         }
 
+        .room-spectators {
+            font-size: 11px;
+            color: #999;
+            margin-top: 5px;
+        }
+
         .game-info {
             text-align: center;
             margin-bottom: 20px;
@@ -496,6 +502,8 @@
             <div class="game-info">
                 <p><strong id="player1Info"></strong> (X) vs <strong id="player2Info"></strong> (O)</p>
                 <p id="roomInfo" style="font-size: 12px; color: #999;"></p>
+                <p id="userRoleInfo" style="font-size: 12px; color: #667eea; font-weight: bold; margin-top: 10px;"></p>
+                <div id="spectatorsInfo" style="font-size: 11px; color: #999; margin-top: 8px;"></div>
             </div>
 
             <div class="game-status" id="gameStatus">Enter player names and click Start Game</div>
@@ -571,6 +579,7 @@
 
         let currentRoom = null;
         let playerName = '';
+        let userRole = 'player'; // 'player1', 'player2', or 'spectator'
         let currentBoard = ['', '', '', '', '', '', '', '', ''];
         let currentPlayer = 'X';
         let gameActive = false;
@@ -643,8 +652,12 @@
                 <li class="room-item">
                     <div>
                         <strong>${room.player1}</strong> (Waiting)
+                        <div class="room-spectators">👁️ ${room.spectatorCount || 0} spectator(s)</div>
                     </div>
-                    <button onclick="joinRoom('${room.id}')">Join</button>
+                    <div style="display: flex; gap: 5px;">
+                        <button onclick="joinRoom('${room.id}')">Play</button>
+                        ${room.spectatorCount < 2 ? `<button onclick="spectateRoom('${room.id}')" style="background: #764ba2;">Watch</button>` : ''}
+                    </div>
                 </li>
             `).join('');
         }
@@ -668,12 +681,36 @@
             player2Info.textContent = currentRoom.player2 || 'Waiting...';
             roomInfo.textContent = `Room ID: ${currentRoom.id}`;
 
+            // Show user role
+            if (userRole === 'spectator') {
+                document.getElementById('userRoleInfo').textContent = '👁️ SPECTATOR MODE';
+                startBtn.disabled = true;
+                resetBtn.disabled = true;
+                cells.forEach(cell => cell.disabled = true);
+            } else {
+                document.getElementById('userRoleInfo').textContent = '';
+                startBtn.disabled = false;
+                resetBtn.disabled = false;
+                cells.forEach(cell => cell.disabled = false);
+            }
+
+            // Show spectators list
+            if (currentRoom.spectators && currentRoom.spectators.length > 0) {
+                const spectatorList = currentRoom.spectators.map(s => s.name).join(', ');
+                document.getElementById('spectatorsInfo').textContent = `👁️ Watching: ${spectatorList}`;
+            } else {
+                document.getElementById('spectatorsInfo').textContent = '';
+            }
+
             if (!gameActive && currentRoom.status === 'ready') {
                 gameStatus.textContent = 'Ready to start! Click "Start Game"';
             } else if (gameActive) {
                 const playerSymbol = isPlayer1 ? 'X' : 'O';
                 if (currentPlayer === playerSymbol) {
                     gameStatus.textContent = `Your Turn (${playerSymbol})`;
+                } else if (userRole === 'spectator') {
+                    const currentPlayerName = currentPlayer === 'X' ? currentRoom.player1 : currentRoom.player2;
+                    gameStatus.textContent = `${currentPlayerName}'s Turn (${currentPlayer})`;
                 } else {
                     const otherPlayerName = isPlayer1 ? currentRoom.player2 : currentRoom.player1;
                     gameStatus.textContent = `${otherPlayerName}'s Turn (${currentPlayer})`;
@@ -764,6 +801,15 @@
             playerName = playerNameInput.value.trim() || 'Player';
             socket.emit('join_room', { roomId, playerName });
             currentRoom = { id: roomId };
+            userRole = 'player';
+            joinGameScreen();
+        }
+
+        function spectateRoom(roomId) {
+            playerName = playerNameInput.value.trim() || 'Player';
+            socket.emit('join_as_spectator', { roomId, playerName });
+            currentRoom = { id: roomId };
+            userRole = 'spectator';
             joinGameScreen();
         }
 
@@ -771,6 +817,7 @@
             currentRoom = null;
             currentBoard = ['', '', '', '', '', '', '', '', ''];
             gameActive = false;
+            userRole = 'player';
             chatMessages.innerHTML = '';
             chatInput.value = '';
             lobbyOverlay.classList.remove('hidden');
